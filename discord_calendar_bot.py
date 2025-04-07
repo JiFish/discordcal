@@ -50,19 +50,26 @@ async def printout(message, channel=None):
 def get_upcoming_events():
     now = datetime.now(timezone.utc)
     time_min = now.isoformat()
-    time_max = (now + timedelta(days=DAYS_AHEAD)).isoformat() # Calculate time_max as now + X days
-    
-    events_result = calendar_service.events().list(
-        calendarId=CALENDAR_ID, timeMin=time_min, timeMax=time_max,
-        singleEvents=True, orderBy='startTime').execute()
-    
-    events = events_result.get('items', [])
+    time_max = (now + timedelta(days=DAYS_AHEAD)).isoformat()
 
-    # Filter out all-day events (events without 'dateTime' in their start and end)
-    return [
-        event for event in events
-        if 'dateTime' in event['start'] and 'dateTime' in event['end']
-    ]
+    all_events = []
+    for calendar_id in CALENDARS:
+        events_result = calendar_service.events().list(
+            calendarId=calendar_id, timeMin=time_min, timeMax=time_max,
+            singleEvents=True, orderBy='startTime').execute()
+        
+        events = events_result.get('items', [])
+        # Filter out all-day events (events without 'dateTime' in their start and end)
+        all_events.extend(
+            event for event in events
+            if 'dateTime' in event['start'] and 'dateTime' in event['end']
+        )
+
+    # Sort events by start time if there are events from multiple calendars
+    if len(CALENDARS) > 1:
+        all_events.sort(key=lambda event: event['start']['dateTime'])
+
+    return all_events
 
 async def fetch_and_create_events(channel=None):
     guild = bot.get_guild(GUILD_ID)

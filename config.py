@@ -1,7 +1,9 @@
 # Google Calendar setup
 SERVICE_ACCOUNT_FILE = 'service_account.json'
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
-CALENDAR_ID = 'dummy_calendar_id@group.calendar.google.com'
+CALENDARS = [
+    'dummy_calendar_id@group.calendar.google.com',
+]
 
 # Discord setup
 TOKEN = 'YOUR_DISCORD_BOT_TOKEN'

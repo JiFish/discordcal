@@ -4,7 +4,7 @@ A lightweight self-hosted alternative to chroniclebot. This bot integrates Googl
 
 ## Features
 
-- Fetches events from a Google Calendar and creates corresponding Discord events.
+- Fetches events from one or more Google Calendars and creates corresponding Discord events.
 - Look as far ahead as you like!
 - Automatically updates Discord synchronises at a configurable interval, or do a manual update via a Discord command.
 - Cancels Discord events that are no longer present in the Google Calendar.
@@ -26,7 +26,7 @@ A lightweight self-hosted alternative to chroniclebot. This bot integrates Googl
 
 All configuration variables are stored in the `config.py` file. Edit the following variables in `config.py`:
 
-- `CALENDAR_ID`: Your Google Calendar ID (e.g., `your_calendar_id@group.calendar.google.com`).
+- `CALENDARS`: A list of your Google Calendar IDs.
 - `TOKEN`: Your Discord bot token.
 - `GUILD_ID`: Your Discord server (guild) ID.
 - `VOICE_CHANNEL_ID`: The ID of the voice channel where events will be associated. Set to `None` to create events without associating them with a voice channel.
