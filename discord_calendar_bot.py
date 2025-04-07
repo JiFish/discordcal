@@ -152,8 +152,8 @@ async def fetch_and_create_events(channel=None):
     if ENABLE_STATUS_UPDATE:
         if events:
             # events are sorted by start time, next event is 0
-            next_event_name = event[0]['summary']
-            next_event_time = datetime.fromisoformat(event[0]['start']['dateTime']).astimezone(SERVER_TZ)
+            next_event_name = events[0]['summary']
+            next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
             human_readable_time = next_event_time.strftime('%a %-I:%M%p')
             status_message = f"Next: {next_event_name} - {human_readable_time}"
         else:
