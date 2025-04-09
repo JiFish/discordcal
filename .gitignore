@@ -4,3 +4,4 @@ __pycache__/
 # Project configuration files
 service_account.json
 config.py
+images/*
