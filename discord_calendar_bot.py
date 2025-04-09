@@ -6,6 +6,7 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from config import *
 import os
+import base64
 
 # Initialize timezone
 SERVER_TZ = pytz_timezone(SERVER_TZ)
@@ -36,6 +37,22 @@ async def update(ctx):
     if ctx.author.id == ADMIN_USER_ID:
         await fetch_and_create_events(ctx.channel)
 
+# Helper function to encode image as base64
+def encode_image_to_base64(image_path):
+    with open(image_path, 'rb') as image_file:
+        image_data = image_file.read()
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        # Determine MIME type based on file extension
+        ext = os.path.splitext(image_path)[1].lower()
+        mime_type = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.webp': 'image/webp',
+            '.gif': 'image/gif'
+        }.get(ext, 'image/png')  # Default to 'image/png' if unknown
+        return f"data:{mime_type};base64,{base64_image}"
+
 @bot.command()
 async def updateimg(ctx):
     """Force update images for all existing events"""
@@ -65,7 +82,8 @@ async def updateimg(ctx):
                 break
 
         if image_path:
-            await discord_event.edit(image=open(image_path, 'rb'))
+            base64_image = encode_image_to_base64(image_path)
+            await discord_event.edit(image=base64_image)
             await ctx.send(f"Updated image for Discord event: {discord_event.name}")
         else:
             await ctx.send(f"No image found for Discord event: {discord_event.name}")
@@ -182,6 +200,8 @@ async def fetch_and_create_events(channel=None):
                 image_path = potential_path
                 break
 
+        base64_image = encode_image_to_base64(image_path) if image_path else None
+
         await guild.create_scheduled_event(
             name=name,
             description=description,
@@ -190,7 +210,7 @@ async def fetch_and_create_events(channel=None):
             channel=voice_channel,
             entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
             privacy_level=discord.PrivacyLevel.guild_only,
-            image=open(image_path, 'rb') if image_path else None  # Use image if found
+            image=base64_image
         )
         await printout(f"Created Discord event: {name}", channel)
 
