@@ -45,6 +45,7 @@ Command must be sent via DM.
 
 - `!ping`: Responds with "pong!"
 - `!update`: Manually fetches and creates events from Google Calendar.
+- `!updateimg`: Force updates images for all existing events with matching image files in the `images` directory.
 
 ## Running the Bot
 
