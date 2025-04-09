@@ -111,7 +111,7 @@ async def fetch_and_create_events(channel=None):
     # Create new Discord events for Google Calendar events
     for event in events:
         name = event['summary']
-        description = event.get('description', 'No description')
+        description = event.get('description', '')
 
         start_raw = event['start'].get('dateTime')
         end_raw = event['end'].get('dateTime')
