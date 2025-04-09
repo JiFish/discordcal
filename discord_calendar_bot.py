@@ -5,6 +5,7 @@ from pytz import timezone as pytz_timezone
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from config import *
+import os
 
 # Initialize timezone
 SERVER_TZ = pytz_timezone(SERVER_TZ)
@@ -137,6 +138,14 @@ async def fetch_and_create_events(channel=None):
                 await printout(f"Event already exists: {name}", channel)
             continue
 
+        # Check for an image file corresponding to the event name
+        image_path = None
+        for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
+            potential_path = os.path.join(IMAGE_DIRECTORY, f"{name}.{ext}")
+            if os.path.isfile(potential_path):
+                image_path = potential_path
+                break
+
         await guild.create_scheduled_event(
             name=name,
             description=description,
@@ -144,7 +153,8 @@ async def fetch_and_create_events(channel=None):
             end_time=end_dt,
             channel=voice_channel,
             entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
-            privacy_level=discord.PrivacyLevel.guild_only
+            privacy_level=discord.PrivacyLevel.guild_only,
+            image=open(image_path, 'rb') if image_path else None  # Use image if found
         )
         await printout(f"Created Discord event: {name}", channel)
 

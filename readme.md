@@ -62,5 +62,6 @@ Command must be sent via DM.
 
 ## Notes
 - Excludes all-day events.
-- Events are identified by start date/time. If you change the name, description or end time the event will be updated. But if you change the start time the event will be cancelled, and a new one created.
-- If you need to explicitly remove all participants from an event cancel it manually, and it will be re-created on the bot's next update.
+- Events are identified by start date/time. If you change the name, description, or end time, the event will be updated. But if you change the start time, the event will be canceled, and a new one created.
+- If you need to explicitly remove all participants from an event, cancel it manually, and it will be re-created on the bot's next update.
+- To add images to events, place the image files in the `images` directory. The image file name must match the event's name (case-sensitive) and have one of the supported extensions (`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`).

@@ -17,3 +17,6 @@ DAYS_AHEAD = 14                        # Number of days to look ahead for events
 UPDATE_FREQUENCY_MINUTES = 60          # Frequency of updates in minutes
 ENABLE_STATUS_UPDATE = True            # Enable or disable updating the bot's status
 SERVER_TZ = 'Europe/London'            # Your server's timezone as a string, used for the bot's status
+
+# Directory for event images
+IMAGE_DIRECTORY = 'images'
