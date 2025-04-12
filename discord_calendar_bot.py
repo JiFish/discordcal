@@ -208,7 +208,8 @@ async def fetch_and_create_events(channel=None):
             # events are sorted by start time, next event is 0
             next_event_name = events[0]['summary']
             next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
-            human_readable_time = next_event_time.strftime('%a %-I:%M%p')
+            hour = next_event_time.strftime('%I').lstrip('0')  # manually remove leading zero, because windows
+            human_readable_time = next_event_time.strftime('%a ' + hour + ':%M%p')
             status_message = f"Next: {next_event_name} - {human_readable_time}"
         else:
             status_message = "No upcoming events"
