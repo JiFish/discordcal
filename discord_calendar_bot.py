@@ -195,9 +195,10 @@ def parse_event(event, guild):
 
     if not voice_channel:
         entity_type = discord.EntityType.external
+        voice_channel = discord.utils.MISSING
     else:
         entity_type = discord.EntityType.voice
-        location = None
+        location = discord.utils.MISSING
 
     return {
         'name': name,
