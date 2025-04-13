@@ -117,10 +117,6 @@ async def fetch_and_create_events(channel=None):
         await printout("Guild not found.", channel)
         return
 
-    voice_channel = await get_voice_channel(guild, channel)
-    if voice_channel is None:
-        return
-
     await printout("Fetching events from Google Calendar...", channel)
     events = get_upcoming_events()
 
@@ -129,7 +125,7 @@ async def fetch_and_create_events(channel=None):
 
     await cancel_outdated_events(events, existing_event_ids, channel)
 
-    await create_or_update_events(events, existing_event_ids, guild, voice_channel, channel)
+    await create_or_update_events(events, existing_event_ids, guild, channel)
 
     save_event_mappings(event_mappings)
 
@@ -156,7 +152,8 @@ async def cancel_outdated_events(events, existing_event_ids, channel):
                 await printout(f"Canceled Discord event: {discord_event.name}", channel)
             del event_mappings[google_id]
 
-async def create_or_update_events(events, existing_event_ids, guild, voice_channel, channel):
+async def create_or_update_events(events, existing_event_ids, guild, channel):
+    voice_channel = await get_voice_channel(guild, channel)
     for event in events:
         google_id = event['id']
         name = event['summary']
