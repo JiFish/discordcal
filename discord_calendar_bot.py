@@ -54,44 +54,6 @@ async def update(ctx):
     if ctx.author.id == ADMIN_USER_ID:
         await fetch_and_create_events(ctx.channel)
 
-@bot.command()
-async def updateimg(ctx):
-    """Force update images for all existing events"""
-    if ctx.author.id != ADMIN_USER_ID:
-        return
-
-    guild = bot.get_guild(GUILD_ID)
-    if not guild:
-        await ctx.send("Guild not found.")
-        return
-
-    # Fetch existing Discord events
-    existing_events = await guild.fetch_scheduled_events()
-    # Filter out events that are not created by the bot
-    existing_events = [
-        event for event in existing_events
-        if event.creator.id == bot.user.id
-    ]
-
-    for discord_event in existing_events:
-        # Check for an image file corresponding to the event name
-        image_path = None
-        for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
-            potential_path = os.path.join(IMAGE_DIRECTORY, f"{discord_event.name}.{ext}")
-            if os.path.isfile(potential_path):
-                image_path = potential_path
-                break
-
-        if image_path:
-            with open(image_path, 'rb') as image_file:
-                image_data = image_file.read()  # Read raw bytes
-            await discord_event.edit(image=image_data)
-            await ctx.send(f"Updated image for Discord event: {discord_event.name}")
-        else:
-            await ctx.send(f"No image found for Discord event: {discord_event.name}")
-
-    await ctx.send("Image update process completed.")
-
 @tasks.loop(minutes=UPDATE_FREQUENCY_MINUTES)
 async def main_loop():
     await fetch_and_create_events()
