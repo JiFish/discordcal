@@ -11,6 +11,7 @@ import json
 # Initialize some constants
 SERVER_TZ = pytz_timezone(SERVER_TZ)
 EVENT_GRACE_TIME = timedelta(minutes=EVENT_GRACE_TIME)
+DAYS_AHEAD = timedelta(days=DAYS_AHEAD)
 
 # Authenticate Google Calendar API
 credentials = service_account.Credentials.from_service_account_file(
@@ -106,7 +107,7 @@ async def printout(message, channel=None):
 def get_upcoming_events():
     now = datetime.now(timezone.utc)
     time_min = now.isoformat()
-    time_max = (now + timedelta(days=DAYS_AHEAD)).isoformat()
+    time_max = (now + DAYS_AHEAD).isoformat()
 
     all_events = []
     for calendar_id in CALENDARS:
