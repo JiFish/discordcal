@@ -36,9 +36,14 @@ def save_event_mappings(mappings):
 # Initialize event mappings
 event_mappings = load_event_mappings()
 
+fallback_voice_channel = None
+
 @bot.event
 async def on_ready():
+    global fallback_voice_channel
     print(f"Logged in as {bot.user}")
+    print(f"Bot ID: {bot.user.id}")
+    fallback_voice_channel = await get_fallback_voice_channel()
     main_loop.start()
 
 @bot.command()
@@ -132,14 +137,20 @@ async def fetch_and_create_events(channel=None):
     if ENABLE_STATUS_UPDATE:
         await update_bot_status(events, channel)
 
-async def get_voice_channel(guild, channel):
-    if VOICE_CHANNEL_ID is not None:
-        voice_channel = guild.get_channel(VOICE_CHANNEL_ID)
-        if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
-            await printout("Voice channel not found or is not a voice channel.", channel)
-            return None
-        return voice_channel
-    return None
+async def get_fallback_voice_channel():
+    if FALLBACK_VOICE_CHANNEL_ID is None:
+        return None
+
+    guild = bot.get_guild(GUILD_ID)
+    if not guild:
+        print("Guild not found.")
+        return None
+    
+    voice_channel = guild.get_channel(FALLBACK_VOICE_CHANNEL_ID)
+    if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
+        print("Voice channel not found or is not a voice channel.")
+        return None
+    return voice_channel
 
 async def cancel_outdated_events(events, existing_event_ids, channel):
     soon = datetime.now(timezone.utc) + EVENT_GRACE_TIME
@@ -153,52 +164,72 @@ async def cancel_outdated_events(events, existing_event_ids, channel):
             del event_mappings[google_id]
 
 async def create_or_update_events(events, existing_event_ids, guild, channel):
-    voice_channel = await get_voice_channel(guild, channel)
     for event in events:
         google_id = event['id']
-        name = event['summary']
-        description = event.get('description', '')
-
-        start_dt, end_dt = parse_event_times(event)
-
         discord_event = existing_event_ids.get(event_mappings.get(google_id))
 
         if discord_event:
-            await update_event_if_needed(discord_event, name, description, start_dt, end_dt, channel)
+            await update_event_if_needed(guild, discord_event, event, channel)
         else:
-            await create_new_event(guild, name, description, start_dt, end_dt, voice_channel, google_id, channel)
+            await create_new_event(guild, event, google_id, channel)
 
-def parse_event_times(event):
+def parse_event(event, guild):
+    # Dates
     start_raw = event['start'].get('dateTime')
     end_raw = event['end'].get('dateTime')
     start_dt = datetime.fromisoformat(start_raw).astimezone(timezone.utc)
     end_dt = datetime.fromisoformat(end_raw).astimezone(timezone.utc)
-    return start_dt, end_dt
 
-async def update_event_if_needed(discord_event, name, description, start_dt, end_dt, channel):
-    if discord_event.description != description or discord_event.name != name\
-    or discord_event.start_time != start_dt or discord_event.end_time != end_dt:
-        await discord_event.edit(
-            name=name,
-            description=description,
-            end_time=end_dt,
-            start_time=start_dt,
-        )
+    # Other data
+    name = event['summary']
+    description = event.get('description', '')
+    location = event.get('location', '').strip()
+
+    # Work out voice channel
+    voice_channel = fallback_voice_channel
+    if location:
+        for vc in guild.voice_channels:
+            if vc.name.lower().strip() == location.lower():
+                voice_channel = vc
+                break
+
+    if not voice_channel:
+        entity_type = discord.EntityType.external
+    else:
+        entity_type = discord.EntityType.voice
+        location = None
+
+    return {
+        'name': name,
+        'description': description,
+        'start_time': start_dt,
+        'end_time': end_dt,
+        'channel': voice_channel,
+        'location': location,
+        'entity_type': entity_type
+    }
+
+async def update_event_if_needed(guild, discord_event, event, channel):
+    parsed_event = parse_event(event, guild)
+    name = parsed_event['name']
+    has_changes = any(
+        getattr(discord_event, key) != value
+        for key, value in parsed_event.items()
+    )
+    if has_changes:
+        await discord_event.edit(**parsed_event)
         await printout(f"Updated Discord event: {name}", channel)
     else:
         await printout(f"Event already exists: {name}", channel)
 
-async def create_new_event(guild, name, description, start_dt, end_dt, voice_channel, google_id, channel):
+async def create_new_event(guild, event, google_id, channel):
+    parsed_event = parse_event(event, guild)
+    name = parsed_event['name']
     image_data = get_event_image(name)
     new_event = await guild.create_scheduled_event(
-        name=name,
-        description=description,
-        start_time=start_dt,
-        end_time=end_dt,
-        channel=voice_channel,
-        entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
         privacy_level=discord.PrivacyLevel.guild_only,
-        image=image_data
+        image=image_data,
+        **parsed_event
     )
     event_mappings[google_id] = new_event.id
     await printout(f"Created Discord event: {name}", channel)

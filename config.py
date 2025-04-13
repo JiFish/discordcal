@@ -8,8 +8,8 @@ CALENDARS = [
 # Discord setup
 TOKEN = 'YOUR_DISCORD_BOT_TOKEN'
 GUILD_ID = 123456789012345678          # Replace with your guild ID
-VOICE_CHANNEL_ID = 123456789012345678  # Replace with your voice channel ID, or None
 ADMIN_USER_ID = 123456789012345678     # Replace with your admin user ID
+FALLBACK_VOICE_CHANNEL_ID = None       # Set to a channel ID to make all events wihthout a voice channel use this one
 COMMAND_PREFIX = "!"
 
 # Bot settings
