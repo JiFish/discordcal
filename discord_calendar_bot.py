@@ -133,21 +133,35 @@ async def fetch_and_create_events(channel=None):
         await printout("Guild not found.", channel)
         return
 
-    voice_channel = None
-    if VOICE_CHANNEL_ID is not None:
-        voice_channel = guild.get_channel(VOICE_CHANNEL_ID)
-        if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
-            await printout("Voice channel not found or is not a voice channel.", channel)
-            return
+    voice_channel = await get_voice_channel(guild, channel)
+    if voice_channel is None:
+        return
 
     await printout("Fetching events from Google Calendar...", channel)
     events = get_upcoming_events()
 
-    # Fetch existing Discord events
     existing_events = await guild.fetch_scheduled_events()
     existing_event_ids = {event.id: event for event in existing_events}
 
-    # Cancel Discord events not in Google Calendar
+    await cancel_outdated_events(events, existing_event_ids, channel)
+
+    await create_or_update_events(events, existing_event_ids, guild, voice_channel, channel)
+
+    save_event_mappings(event_mappings)
+
+    if ENABLE_STATUS_UPDATE:
+        await update_bot_status(events, channel)
+
+async def get_voice_channel(guild, channel):
+    if VOICE_CHANNEL_ID is not None:
+        voice_channel = guild.get_channel(VOICE_CHANNEL_ID)
+        if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
+            await printout("Voice channel not found or is not a voice channel.", channel)
+            return None
+        return voice_channel
+    return None
+
+async def cancel_outdated_events(events, existing_event_ids, channel):
     soon = datetime.now(timezone.utc) + EVENT_GRACE_TIME
     google_event_ids = {event['id'] for event in events}
     for google_id, discord_id in list(event_mappings.items()):
@@ -158,86 +172,75 @@ async def fetch_and_create_events(channel=None):
                 await printout(f"Canceled Discord event: {discord_event.name}", channel)
             del event_mappings[google_id]
 
-    # Create or update Discord events for Google Calendar events
+async def create_or_update_events(events, existing_event_ids, guild, voice_channel, channel):
     for event in events:
         google_id = event['id']
         name = event['summary']
         description = event.get('description', '')
 
-        start_raw = event['start'].get('dateTime')
-        end_raw = event['end'].get('dateTime')
+        start_dt, end_dt = parse_event_times(event)
 
-        start_dt = datetime.fromisoformat(start_raw).astimezone(timezone.utc)
-        end_dt = datetime.fromisoformat(end_raw).astimezone(timezone.utc)
-
-        discord_event = None
-        if google_id in event_mappings:
-            discord_event = existing_event_ids.get(event_mappings[google_id])
+        discord_event = existing_event_ids.get(event_mappings.get(google_id))
 
         if discord_event:
-            # Update the existing event if needed
-            if discord_event.description != description or discord_event.name != name\
-            or discord_event.start_time != start_dt or discord_event.end_time != end_dt:
-                await discord_event.edit(
-                    name=name,
-                    description=description,
-                    end_time=end_dt,
-                    start_time=start_dt,
-                )
-                await printout(f"Updated Discord event: {name}", channel)
-            else:
-                await printout(f"Event already exists: {name}", channel)
+            await update_event_if_needed(discord_event, name, description, start_dt, end_dt, channel)
         else:
-            # Create a new Discord event
-            image_path = None
-            for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
-                potential_path = os.path.join(IMAGE_DIRECTORY, f"{name}.{ext}")
-                if os.path.isfile(potential_path):
-                    image_path = potential_path
-                    break
+            await create_new_event(guild, name, description, start_dt, end_dt, voice_channel, google_id, channel)
 
-            if image_path:
-                with open(image_path, 'rb') as image_file:
-                    image_data = image_file.read()  # Read raw bytes
-                new_event = await guild.create_scheduled_event(
-                    name=name,
-                    description=description,
-                    start_time=start_dt,
-                    end_time=end_dt,
-                    channel=voice_channel,
-                    entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
-                    privacy_level=discord.PrivacyLevel.guild_only,
-                    image=image_data
-                )
-            else:
-                new_event = await guild.create_scheduled_event(
-                    name=name,
-                    description=description,
-                    start_time=start_dt,
-                    end_time=end_dt,
-                    channel=voice_channel,
-                    entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
-                    privacy_level=discord.PrivacyLevel.guild_only
-                )
-            event_mappings[google_id] = new_event.id
-            await printout(f"Created Discord event: {name}", channel)
+def parse_event_times(event):
+    start_raw = event['start'].get('dateTime')
+    end_raw = event['end'].get('dateTime')
+    start_dt = datetime.fromisoformat(start_raw).astimezone(timezone.utc)
+    end_dt = datetime.fromisoformat(end_raw).astimezone(timezone.utc)
+    return start_dt, end_dt
 
-    # Save updated mappings to file
-    save_event_mappings(event_mappings)
+async def update_event_if_needed(discord_event, name, description, start_dt, end_dt, channel):
+    if discord_event.description != description or discord_event.name != name\
+    or discord_event.start_time != start_dt or discord_event.end_time != end_dt:
+        await discord_event.edit(
+            name=name,
+            description=description,
+            end_time=end_dt,
+            start_time=start_dt,
+        )
+        await printout(f"Updated Discord event: {name}", channel)
+    else:
+        await printout(f"Event already exists: {name}", channel)
 
-    # Update bot status with the next upcoming event
-    if ENABLE_STATUS_UPDATE:
-        if events:
-            # events are sorted by start time, next event is 0
-            next_event_name = events[0]['summary']
-            next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
-            hour = next_event_time.strftime('%I').lstrip('0')  # manually remove leading zero, because windows
-            human_readable_time = next_event_time.strftime('%a ' + hour + ':%M%p')
-            status_message = f"Next: {next_event_name} - {human_readable_time}"
-        else:
-            status_message = "No upcoming events"
+async def create_new_event(guild, name, description, start_dt, end_dt, voice_channel, google_id, channel):
+    image_data = get_event_image(name)
+    new_event = await guild.create_scheduled_event(
+        name=name,
+        description=description,
+        start_time=start_dt,
+        end_time=end_dt,
+        channel=voice_channel,
+        entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
+        privacy_level=discord.PrivacyLevel.guild_only,
+        image=image_data
+    )
+    event_mappings[google_id] = new_event.id
+    await printout(f"Created Discord event: {name}", channel)
 
-        await bot.change_presence(activity=discord.CustomActivity(name=status_message))
-        await printout(f"Updated bot status: {status_message}", channel)
+def get_event_image(name):
+    for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
+        potential_path = os.path.join(IMAGE_DIRECTORY, f"{name}.{ext}")
+        if os.path.isfile(potential_path):
+            with open(potential_path, 'rb') as image_file:
+                return image_file.read()
+    return discord.utils.MISSING
+
+async def update_bot_status(events, channel):
+    if events:
+        next_event_name = events[0]['summary']
+        next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
+        hour = next_event_time.strftime('%I').lstrip('0')
+        human_readable_time = next_event_time.strftime('%a ' + hour + ':%M%p')
+        status_message = f"Next: {next_event_name} - {human_readable_time}"
+    else:
+        status_message = "No upcoming events"
+
+    await bot.change_presence(activity=discord.CustomActivity(name=status_message))
+    await printout(f"Updated bot status: {status_message}", channel)
 
 bot.run(TOKEN)
