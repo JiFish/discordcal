@@ -1,7 +1,7 @@
 import discord
 from discord.ext import commands, tasks
 from config import COMMAND_PREFIX, TOKEN, ADMIN_USER_ID, UPDATE_FREQUENCY_MINUTES
-from logic import fetch_and_create_events, store_server_info, update_existing_event_images
+from logic import fetch_and_create_events, store_server_info, update_existing_event_images, load_event_mappings
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
@@ -14,6 +14,7 @@ async def on_ready():
         print("Failed to get Discord objects.")
         bot.close()
     else:
+        load_event_mappings()
         main_loop.start()
 
 @bot.command()

@@ -12,54 +12,69 @@ SERVER_TZ = pytz_timezone(SERVER_TZ)
 EVENT_GRACE_TIME = timedelta(minutes=EVENT_GRACE_TIME)
 DAYS_AHEAD = timedelta(days=DAYS_AHEAD)
 
-# Authenticate Google Calendar API
+# Google Calendar API Initialization
 credentials = service_account.Credentials.from_service_account_file(
     SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 calendar_service = build('calendar', 'v3', credentials=credentials)
 
+# Global Variables
 fallback_voice_channel = None
 guild = None
+event_mappings = {}
 
-# Store the guild and fallback voice channel
-async def store_server_info(bot):
-    global fallback_voice_channel, guild
-
-    guild = bot.get_guild(GUILD_ID)
-    if not guild:
-        print("Guild not found.")
-        return False
-
-    if FALLBACK_VOICE_CHANNEL_ID is None:
-        return True
-    
-    voice_channel = guild.get_channel(FALLBACK_VOICE_CHANNEL_ID)
-    if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
-        print("Voice channel not found or is not a voice channel.")
-        return False
-    
-    fallback_voice_channel = voice_channel
-    return True
-
-# Load event mappings from file
+# Utility Functions
 def load_event_mappings():
+    global event_mappings
     if os.path.exists(EVENT_MAPPING_FILE):
         with open(EVENT_MAPPING_FILE, 'r') as f:
-            return json.load(f)
+            event_mappings = json.load(f)
     return {}
 
-# Save event mappings to file
 def save_event_mappings(mappings):
     with open(EVENT_MAPPING_FILE, 'w') as f:
         json.dump(mappings, f, indent=4)
 
-# Initialize event mappings
-event_mappings = load_event_mappings()
+def get_event_image(name):
+    for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
+        potential_path = os.path.join(IMAGE_DIRECTORY, f"{name}.{ext}")
+        if os.path.isfile(potential_path):
+            with open(potential_path, 'rb') as image_file:
+                return image_file.read()
+    return discord.utils.MISSING
 
-async def printout(message, channel=None):
-    if channel is None:
-        print(message)
+def parse_event(event):
+    start_raw = event['start'].get('dateTime')
+    end_raw = event['end'].get('dateTime')
+    start_dt = datetime.fromisoformat(start_raw).astimezone(timezone.utc)
+    end_dt = datetime.fromisoformat(end_raw).astimezone(timezone.utc)
+
+    name = event['summary']
+    description = event.get('description', '')
+    location = event.get('location', '').strip()
+
+    voice_channel = fallback_voice_channel
+    if location:
+        for vc in guild.voice_channels:
+            if vc.name.lower().strip() == location.lower():
+                voice_channel = vc
+                break
+
+    if not voice_channel:
+        entity_type = discord.EntityType.external
+        voice_channel = discord.utils.MISSING
     else:
-        await channel.send(message)
+        entity_type = discord.EntityType.voice
+        location = discord.utils.MISSING
+
+    return {
+        'name': name,
+        'description': description,
+        'start_time': start_dt,
+        'end_time': end_dt,
+        'channel': voice_channel,
+        'location': location,
+        'entity_type': entity_type
+    }
 
 def get_upcoming_events():
     now = datetime.now(timezone.utc)
@@ -82,6 +97,32 @@ def get_upcoming_events():
         all_events.sort(key=lambda event: event['start']['dateTime'])
 
     return all_events
+
+# Discord Bot Functions
+async def store_server_info(bot):
+    global fallback_voice_channel, guild
+
+    guild = bot.get_guild(GUILD_ID)
+    if not guild:
+        print("Guild not found.")
+        return False
+
+    if FALLBACK_VOICE_CHANNEL_ID is None:
+        return True
+    
+    voice_channel = guild.get_channel(FALLBACK_VOICE_CHANNEL_ID)
+    if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
+        print("Voice channel not found or is not a voice channel.")
+        return False
+    
+    fallback_voice_channel = voice_channel
+    return True
+
+async def printout(message, channel=None):
+    if channel is None:
+        print(message)
+    else:
+        await channel.send(message)
 
 async def fetch_and_create_events(bot, channel=None):
     await printout("Fetching events from Google Calendar...", channel)
@@ -118,40 +159,6 @@ async def create_or_update_events(events, existing_event_ids, channel):
         else:
             await create_new_event(event, google_id, channel)
 
-def parse_event(event):
-    start_raw = event['start'].get('dateTime')
-    end_raw = event['end'].get('dateTime')
-    start_dt = datetime.fromisoformat(start_raw).astimezone(timezone.utc)
-    end_dt = datetime.fromisoformat(end_raw).astimezone(timezone.utc)
-
-    name = event['summary']
-    description = event.get('description', '')
-    location = event.get('location', '').strip()
-
-    voice_channel = fallback_voice_channel
-    if location:
-        for vc in guild.voice_channels:
-            if vc.name.lower().strip() == location.lower():
-                voice_channel = vc
-                break
-
-    if not voice_channel:
-        entity_type = discord.EntityType.external
-        voice_channel = discord.utils.MISSING
-    else:
-        entity_type = discord.EntityType.voice
-        location = discord.utils.MISSING
-
-    return {
-        'name': name,
-        'description': description,
-        'start_time': start_dt,
-        'end_time': end_dt,
-        'channel': voice_channel,
-        'location': location,
-        'entity_type': entity_type
-    }
-
 async def update_event_if_needed(discord_event, event, channel):
     parsed_event = parse_event(event)
     name = parsed_event['name']
@@ -176,14 +183,6 @@ async def create_new_event(event, google_id, channel):
     )
     event_mappings[google_id] = new_event.id
     await printout(f"Created Discord event: {name}", channel)
-
-def get_event_image(name):
-    for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
-        potential_path = os.path.join(IMAGE_DIRECTORY, f"{name}.{ext}")
-        if os.path.isfile(potential_path):
-            with open(potential_path, 'rb') as image_file:
-                return image_file.read()
-    return discord.utils.MISSING
 
 async def update_bot_status(events, bot, channel):
     if events:
