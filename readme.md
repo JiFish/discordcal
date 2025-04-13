@@ -39,6 +39,7 @@ You may also wish to change:
 - `UPDATE_FREQUENCY_MINUTES`: Frequency (in minutes) at which the bot updates events automatically.
 - `ENABLE_STATUS_UPDATE`: Set to `True` to enable updating the bot's status with the next event, or `False` to disable it.
 - `SERVER_TZ`: Timezone used for above status message
+- `EVENT_GRACE_TIME`: Events won't be modified if they will start in EVENT_GRACE_TIME minutes.
 
 To add images to events, place the image files in the `images` directory. The image file name must match the event's name (case-sensitive) and have one of the supported extensions (`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`). Recommended image size is 800px wide, 320px tall.
 
@@ -66,5 +67,5 @@ Command must be sent via DM.
 
 ## Notes
 - Excludes all-day events.
-- Events are identified by start date/time. If you change the name, description, or end time, the event will be updated. But if you change the start time, the event will be canceled, and a new one created.
+- The relationship between google calender event ids and discord event ids is saved to disc in `event_mapping.json`.
 - If you need to explicitly remove all participants from an event, cancel it manually, and it will be re-created on the bot's next update.

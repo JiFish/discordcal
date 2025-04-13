@@ -6,9 +6,11 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from config import *
 import os
+import json
 
-# Initialize timezone
+# Initialize some constants
 SERVER_TZ = pytz_timezone(SERVER_TZ)
+EVENT_GRACE_TIME = timedelta(minutes=EVENT_GRACE_TIME)
 
 # Authenticate Google Calendar API
 credentials = service_account.Credentials.from_service_account_file(
@@ -17,6 +19,21 @@ calendar_service = build('calendar', 'v3', credentials=credentials)
 
 intents = discord.Intents.default()
 bot = commands.Bot(command_prefix=COMMAND_PREFIX, intents=intents)
+
+# Load event mappings from file
+def load_event_mappings():
+    if os.path.exists(EVENT_MAPPING_FILE):
+        with open(EVENT_MAPPING_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+# Save event mappings to file
+def save_event_mappings(mappings):
+    with open(EVENT_MAPPING_FILE, 'w') as f:
+        json.dump(mappings, f, indent=4)
+
+# Initialize event mappings
+event_mappings = load_event_mappings()
 
 @bot.event
 async def on_ready():
@@ -128,26 +145,22 @@ async def fetch_and_create_events(channel=None):
 
     # Fetch existing Discord events
     existing_events = await guild.fetch_scheduled_events()
-    # Filter out events that are not created by the bot
-    existing_events = [
-        event for event in existing_events
-        if event.creator.id == bot.user.id
-    ]
+    existing_event_ids = {event.id: event for event in existing_events}
 
-    google_event_start_times = set(
-        datetime.fromisoformat(event['start']['dateTime']).astimezone(timezone.utc)
-        for event in events
-    )
+    # Cancel Discord events not in Google Calendar
+    soon = datetime.now(timezone.utc) + EVENT_GRACE_TIME
+    google_event_ids = {event['id'] for event in events}
+    for google_id, discord_id in list(event_mappings.items()):
+        if google_id not in google_event_ids:
+            discord_event = existing_event_ids.get(discord_id)
+            if discord_event and discord_event.start_time > soon:
+                await discord_event.cancel()
+                await printout(f"Canceled Discord event: {discord_event.name}", channel)
+            del event_mappings[google_id]
 
-    # Cancel Discord events not in Google Calendar, that are not ongoing or imminent
-    soon = datetime.now(timezone.utc) + timedelta(minutes=5)
-    for discord_event in existing_events:
-        if discord_event.start_time > soon and discord_event.start_time not in google_event_start_times:
-            await discord_event.cancel()
-            await printout(f"Canceled Discord event: {discord_event.name}", channel)
-
-    # Create new Discord events for Google Calendar events
+    # Create or update Discord events for Google Calendar events
     for event in events:
+        google_id = event['id']
         name = event['summary']
         description = event.get('description', '')
 
@@ -157,49 +170,60 @@ async def fetch_and_create_events(channel=None):
         start_dt = datetime.fromisoformat(start_raw).astimezone(timezone.utc)
         end_dt = datetime.fromisoformat(end_raw).astimezone(timezone.utc)
 
-        # Avoid duplicates by checking existing event names and start times
-        existing_event = next(
-            (e for e in existing_events if e.start_time == start_dt),
-            None
-        )
-        if existing_event:
+        discord_event = None
+        if google_id in event_mappings:
+            discord_event = existing_event_ids.get(event_mappings[google_id])
+
+        if discord_event:
             # Update the existing event if needed
-            if existing_event.description != description or existing_event.end_time != end_dt \
-            or existing_event.name != name:
-                await existing_event.edit(
+            if discord_event.description != description or discord_event.name != name\
+            or discord_event.start_time != start_dt or discord_event.end_time != end_dt:
+                await discord_event.edit(
                     name=name,
                     description=description,
-                    end_time=end_dt
+                    end_time=end_dt,
+                    start_time=start_dt,
                 )
                 await printout(f"Updated Discord event: {name}", channel)
             else:
                 await printout(f"Event already exists: {name}", channel)
-            continue
+        else:
+            # Create a new Discord event
+            image_path = None
+            for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
+                potential_path = os.path.join(IMAGE_DIRECTORY, f"{name}.{ext}")
+                if os.path.isfile(potential_path):
+                    image_path = potential_path
+                    break
 
-        # Check for an image file corresponding to the event name
-        image_path = None
-        for ext in ['jpg', 'jpeg', 'png', 'webp', 'gif']:
-            potential_path = os.path.join(IMAGE_DIRECTORY, f"{name}.{ext}")
-            if os.path.isfile(potential_path):
-                image_path = potential_path
-                break
+            if image_path:
+                with open(image_path, 'rb') as image_file:
+                    image_data = image_file.read()  # Read raw bytes
+                new_event = await guild.create_scheduled_event(
+                    name=name,
+                    description=description,
+                    start_time=start_dt,
+                    end_time=end_dt,
+                    channel=voice_channel,
+                    entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
+                    privacy_level=discord.PrivacyLevel.guild_only,
+                    image=image_data
+                )
+            else:
+                new_event = await guild.create_scheduled_event(
+                    name=name,
+                    description=description,
+                    start_time=start_dt,
+                    end_time=end_dt,
+                    channel=voice_channel,
+                    entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
+                    privacy_level=discord.PrivacyLevel.guild_only
+                )
+            event_mappings[google_id] = new_event.id
+            await printout(f"Created Discord event: {name}", channel)
 
-        image_data = None
-        if image_path:
-            with open(image_path, 'rb') as image_file:
-                image_data = image_file.read()  # Read raw bytes
-
-        await guild.create_scheduled_event(
-            name=name,
-            description=description,
-            start_time=start_dt,
-            end_time=end_dt,
-            channel=voice_channel,
-            entity_type=discord.EntityType.voice if voice_channel else discord.EntityType.external,
-            privacy_level=discord.PrivacyLevel.guild_only,
-            image=image_data
-        )
-        await printout(f"Created Discord event: {name}", channel)
+    # Save updated mappings to file
+    save_event_mappings(event_mappings)
 
     # Update bot status with the next upcoming event
     if ENABLE_STATUS_UPDATE:
