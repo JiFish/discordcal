@@ -54,6 +54,24 @@ async def update(ctx):
     if ctx.author.id == ADMIN_USER_ID:
         await fetch_and_create_events(ctx.channel)
 
+@bot.command()
+async def updateimg(ctx):
+    """Update images for all existing events"""
+    if ctx.author.id == ADMIN_USER_ID:
+        guild = bot.get_guild(GUILD_ID)
+        if not guild:
+            await printout("Guild not found.", ctx.channel)
+            return
+
+        existing_events = await guild.fetch_scheduled_events()
+        for event in existing_events:
+            image_data = get_event_image(event.name)
+            if image_data:
+                await event.edit(image=image_data)
+                await printout(f"Updated image for event: {event.name}", ctx.channel)
+            else:
+                await printout(f"No image found for event: {event.name}", ctx.channel)
+
 @tasks.loop(minutes=UPDATE_FREQUENCY_MINUTES)
 async def main_loop():
     await fetch_and_create_events()
