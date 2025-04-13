@@ -214,7 +214,7 @@ async def update_event_if_needed(guild, discord_event, event, channel):
     parsed_event = parse_event(event, guild)
     name = parsed_event['name']
     has_changes = any(
-        getattr(discord_event, key) != value
+        getattr(discord_event, key) != (None if value is discord.utils.MISSING else value)
         for key, value in parsed_event.items()
     )
     if has_changes:
