@@ -219,7 +219,6 @@ async def update_bot_status(events, channel):
         next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
         status_message = events[0]['summary'].replace("%", "%%") 
         status_message = STATUS_MESSAGE_FORMAT.replace("%event", status_message)
-        print(status_message)
         status_message = next_event_time.strftime(status_message)
     else:
         status_message = "No upcoming events"
