@@ -216,11 +216,11 @@ def get_event_image(name):
 
 async def update_bot_status(events, channel):
     if events:
-        next_event_name = events[0]['summary']
         next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
-        hour = next_event_time.strftime('%I').lstrip('0')
-        human_readable_time = next_event_time.strftime('%a ' + hour + ':%M%p')
-        status_message = f"Next: {next_event_name} - {human_readable_time}"
+        status_message = events[0]['summary'].replace("%", "%%") 
+        status_message = STATUS_MESSAGE_FORMAT.replace("%event", status_message)
+        print(status_message)
+        status_message = next_event_time.strftime(status_message)
     else:
         status_message = "No upcoming events"
 

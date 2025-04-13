@@ -38,8 +38,8 @@ You may also wish to change:
 - `DAYS_AHEAD`: Number of days ahead to fetch events.
 - `UPDATE_FREQUENCY_MINUTES`: Frequency (in minutes) at which the bot updates events automatically.
 - `ENABLE_STATUS_UPDATE`: Set to `True` to enable updating the bot's status with the next event, or `False` to disable it.
-- `SERVER_TZ`: Timezone used for above status message
-- `EVENT_GRACE_TIME`: Events won't be modified if they will start in EVENT_GRACE_TIME minutes.
+- `SERVER_TZ`: Timezone used for above status message.
+- `STATUS_MESSAGE_FORMAT`: The text of the status message. `%event` is replaced with the event's name. The date and time use the [strftime](https://strftime.org/) format.
 
 To add images to events, place the image files in the `images` directory. The image file name must match the event's name (case-sensitive) and have one of the supported extensions (`.jpg`, `.jpeg`, `.png`, `.webp`, `.gif`). Recommended image size is 800px wide, 320px tall.
 
