@@ -19,8 +19,10 @@ EVENT_GRACE_TIME = 5            # Number of minutes before an event starts when 
 ENABLE_STATUS_UPDATE = True     # Enable or disable updating the bot's status
 SERVER_TZ = 'GMT'               # Your server's timezone as a string, used for the bot's status
 # Format for the bot's status message
-# %event: Event name, other placeholders use strftime format: https://strftime.org/
-STATUS_MESSAGE_FORMAT = "Next: %event - %b %m %H:%M (GMT)"
+# %event: Event name
+# %next: Day name if the event is less than 7 days away, otherwise the month name and day
+# You can use any placeholders from strftime: https://strftime.org/
+STATUS_MESSAGE_FORMAT = "Next: %event - %next %H:%M (GMT)"
 
 # Directory for event images
 IMAGE_DIRECTORY = 'images'
