@@ -124,21 +124,24 @@ async def printout(message, channel=None):
     else:
         await channel.send(message)
 
-async def fetch_and_create_events(bot, channel=None):
-    await printout("Fetching events from Google Calendar...", channel)
+async def fetch_and_create_events(bot):
+    output = ["Fetching events from Google Calendar..."]
     events = get_upcoming_events()
 
     existing_events = await guild.fetch_scheduled_events()
     existing_event_ids = {event.id: event for event in existing_events}
 
-    await cancel_outdated_events(events, existing_event_ids, channel)
-    await create_or_update_events(events, existing_event_ids, channel)
+    output += await cancel_outdated_events(events, existing_event_ids)
+    output += await create_or_update_events(events, existing_event_ids)
     save_event_mappings(event_mappings)
 
     if ENABLE_STATUS_UPDATE:
-        await update_bot_status(events, bot, channel)
+        output.append(await update_bot_status(events, bot))
 
-async def cancel_outdated_events(events, existing_event_ids, channel):
+    return output
+
+async def cancel_outdated_events(events, existing_event_ids):
+    output = []
     soon = datetime.now(timezone.utc) + EVENT_GRACE_TIME
     google_event_ids = {event['id'] for event in events}
     for google_id, discord_id in list(event_mappings.items()):
@@ -146,20 +149,22 @@ async def cancel_outdated_events(events, existing_event_ids, channel):
             discord_event = existing_event_ids.get(discord_id)
             if discord_event and discord_event.start_time > soon:
                 await discord_event.cancel()
-                await printout(f"Canceled Discord event: {discord_event.name}", channel)
+                output.append(f"Canceled Discord event: {discord_event.name}")
             del event_mappings[google_id]
+    return output
 
-async def create_or_update_events(events, existing_event_ids, channel):
+async def create_or_update_events(events, existing_event_ids):
+    output = []
     for event in events:
         google_id = event['id']
         discord_event = existing_event_ids.get(event_mappings.get(google_id))
 
         if discord_event:
-            await update_event_if_needed(discord_event, event, channel)
+            output.append(await update_event_if_needed(discord_event, event))
         else:
-            await create_new_event(event, google_id, channel)
+            output.append(await create_new_event(event, google_id))
 
-async def update_event_if_needed(discord_event, event, channel):
+async def update_event_if_needed(discord_event, event):
     parsed_event = parse_event(event)
     name = parsed_event['name']
     has_changes = any(
@@ -168,11 +173,10 @@ async def update_event_if_needed(discord_event, event, channel):
     )
     if has_changes:
         await discord_event.edit(**parsed_event)
-        await printout(f"Updated Discord event: {name}", channel)
-    else:
-        await printout(f"Event already exists: {name}", channel)
+        return f"Updated Discord event: {name}"
+    return f"No changes for event: {name}"
 
-async def create_new_event(event, google_id, channel):
+async def create_new_event(event, google_id):
     parsed_event = parse_event(event)
     name = parsed_event['name']
     image_data = get_event_image(name)
@@ -182,9 +186,9 @@ async def create_new_event(event, google_id, channel):
         **parsed_event
     )
     event_mappings[google_id] = new_event.id
-    await printout(f"Created Discord event: {name}", channel)
+    return f"Created Discord event: {name}"
 
-async def update_bot_status(events, bot, channel):
+async def update_bot_status(events, bot):
     if events:
         next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
         status_message = events[0]['summary'].replace("%", "%%") 
@@ -198,17 +202,19 @@ async def update_bot_status(events, bot, channel):
         status_message = "No upcoming events"
 
     await bot.change_presence(activity=discord.CustomActivity(name=status_message))
-    await printout(f"Updated bot status: {status_message}", channel)
+    return f"Updated bot status: {status_message}"
 
-async def update_existing_event_images(ctx):
+async def update_existing_event_images():
+    output = []
     for discord_id in event_mappings.values():
         try:
             discord_event = await guild.fetch_scheduled_event(discord_id)
             image_data = get_event_image(discord_event.name)
             if image_data:
                 await discord_event.edit(image=image_data)
-                await printout(f"Updated image for event: {discord_event.name}", ctx.channel)
+                output.append(f"Updated image for event: {discord_event.name}")
             else:
-                await printout(f"No image found for event: {discord_event.name}", ctx.channel)
+                output.append(f"No image found for event: {discord_event.name}")
         except discord.NotFound:
-            await printout(f"Event with ID {discord_id} not found.", ctx.channel)
+            output.append(f"Event with ID {discord_id} not found.")
+    return output

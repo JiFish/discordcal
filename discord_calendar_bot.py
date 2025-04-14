@@ -27,16 +27,21 @@ async def ping(ctx):
 async def update(ctx):
     """Manually fetch and create events"""
     if ctx.author.id == ADMIN_USER_ID:
-        await fetch_and_create_events(bot, ctx.channel)
+        await ctx.send("Please wait while I fetch and create events...")
+        output = await fetch_and_create_events(bot)
+        await ctx.send("\n".join(output))
 
 @bot.command()
 async def updateimg(ctx):
     """Update images for all events in event_mappings"""
     if ctx.author.id == ADMIN_USER_ID:
-        await update_existing_event_images(ctx.channel)
+        await ctx.send("Updating images for all events...")
+        output = await update_existing_event_images()
+        await ctx.send("\n".join(output))
 
 @tasks.loop(minutes=UPDATE_FREQUENCY_MINUTES)
 async def main_loop():
-    await fetch_and_create_events(bot)
+    for output in await fetch_and_create_events(bot):
+        print(output)
 
 bot.run(TOKEN)
