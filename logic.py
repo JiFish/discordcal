@@ -197,7 +197,7 @@ async def update_bot_status(events, bot):
         if "%next" in status_message:
             today = datetime.now(SERVER_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
             days_away = (next_event_time - today).days
-            status_message = status_message.replace("%next", "%a" if days_away <= 7 else "%b %d")
+            status_message = status_message.replace("%next", "Today" if days_away == 0 else "%a" if days_away <= 7 else "%b %d")
         status_message = next_event_time.strftime(status_message)
     else:
         status_message = "No upcoming events"
