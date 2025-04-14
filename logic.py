@@ -129,10 +129,10 @@ async def fetch_and_create_events(bot):
     events = get_upcoming_events()
 
     existing_events = await guild.fetch_scheduled_events()
-    existing_event_ids = {event.id: event for event in existing_events}
+    existing_events_by_id = {event.id: event for event in existing_events}
 
-    output += await cancel_outdated_events(events, existing_event_ids)
-    output += await create_or_update_events(events, existing_event_ids)
+    output += await cancel_outdated_events(events, existing_events_by_id)
+    output += await create_or_update_events(events, existing_events_by_id)
     save_event_mappings(event_mappings)
 
     if ENABLE_STATUS_UPDATE:
@@ -140,24 +140,25 @@ async def fetch_and_create_events(bot):
 
     return output
 
-async def cancel_outdated_events(events, existing_event_ids):
+async def cancel_outdated_events(events, existing_events_by_id):
     output = []
     soon = datetime.now(timezone.utc) + EVENT_GRACE_TIME
     google_event_ids = {event['id'] for event in events}
     for google_id, discord_id in list(event_mappings.items()):
         if google_id not in google_event_ids:
-            discord_event = existing_event_ids.get(discord_id)
+            discord_event = existing_events_by_id.get(discord_id)
+            # If the event exists and is not in it's grace period
             if discord_event and discord_event.start_time > soon:
                 await discord_event.cancel()
                 output.append(f"Canceled Discord event: {discord_event.name}")
             del event_mappings[google_id]
     return output
 
-async def create_or_update_events(events, existing_event_ids):
+async def create_or_update_events(events, existing_events_by_id):
     output = []
     for event in events:
         google_id = event['id']
-        discord_event = existing_event_ids.get(event_mappings.get(google_id))
+        discord_event = existing_events_by_id.get(event_mappings.get(google_id))
 
         if discord_event:
             output.append(await update_event_if_needed(discord_event, event))
