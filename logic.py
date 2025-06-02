@@ -138,7 +138,10 @@ async def fetch_and_create_events(bot):
     if ENABLE_STATUS_UPDATE:
         output.append(await update_bot_status(events, bot))
 
-    return output
+    # Always return output and managed events
+    managed_event_ids = set(event_mappings.values())
+    managed_events = [event for event in existing_events if event.id in managed_event_ids]
+    return output, managed_events
 
 async def cancel_outdated_events(events, existing_events_by_id):
     output = []
@@ -164,6 +167,7 @@ async def create_or_update_events(events, existing_events_by_id):
             output.append(await update_event_if_needed(discord_event, event))
         else:
             output.append(await create_new_event(event, google_id))
+    return output
 
 async def update_event_if_needed(discord_event, event):
     parsed_event = parse_event(event)
@@ -218,4 +222,30 @@ async def update_existing_event_images():
                 output.append(f"No image found for event: {discord_event.name}")
         except discord.NotFound:
             output.append(f"Event with ID {discord_id} not found.")
+    return output
+
+async def maybe_autostart_events(events):
+    output = []
+    now = datetime.now(timezone.utc)
+    for event in events:
+        # Only consider events that are not running and have a voice channel
+        if (
+            event.status != discord.EventStatus.active
+            and event.scheduled_start_time < now
+            and event.entity_type == discord.EntityType.voice
+            and event.channel_id is not None
+        ):
+            voice_channel = guild.get_channel(event.channel_id)
+            if not voice_channel or not isinstance(voice_channel, discord.VoiceChannel):
+                continue
+            # Check if any admin is in the voice channel
+            admin_in_channel = any(
+                member.id in ADMIN_USER_IDS for member in voice_channel.members
+            )
+            if admin_in_channel:
+                try:
+                    await event.start()
+                    output.append(f"Auto-started event: {event.name}")
+                except Exception as e:
+                    output.append(f"Failed to auto-start event {event.name}: {e}")
     return output

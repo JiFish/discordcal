@@ -8,7 +8,7 @@ CALENDARS = [
 # Discord setup
 TOKEN = 'YOUR_DISCORD_BOT_TOKEN'
 GUILD_ID = 123456789012345678          # Replace with your guild ID
-ADMIN_USER_ID = 123456789012345678     # Replace with your admin user ID
+ADMIN_USER_IDS = [123456789012345678]  # Replace with your admin user IDs
 FALLBACK_VOICE_CHANNEL_ID = None       # Set to a channel ID to make all events wihthout a voice channel use this one
 COMMAND_PREFIX = "!"
 
@@ -23,6 +23,9 @@ SERVER_TZ = 'GMT'               # Your server's timezone as a string, used for t
 # %next: Day name if the event is less than 7 days away, otherwise the month name and day
 # You can use any placeholders from strftime: https://strftime.org/
 STATUS_MESSAGE_FORMAT = "Next: %event - %next %H:%M (GMT)"
+
+# Frequency (in minutes) for auto-starting events if eligible. Set to None or 0 to disable.
+AUTOSTART_LOOP_MINUTES = 1
 
 # Directory for event images
 IMAGE_DIRECTORY = 'images'

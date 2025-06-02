@@ -30,7 +30,7 @@ All configuration variables are stored in the `config.py` file. You must edit th
 - `CALENDARS`: A list of your Google Calendar IDs.
 - `TOKEN`: Your Discord bot token.
 - `GUILD_ID`: Your Discord server (guild) ID.
-- `ADMIN_USER_ID`: Your Discord user ID for admin commands.
+- `ADMIN_USER_IDS`: Discord IDs for users with admin commands.
 
 You may also wish to change:
 
