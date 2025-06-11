@@ -164,6 +164,7 @@ async def create_or_update_events(events, existing_events_by_id):
             output.append(await update_event_if_needed(discord_event, event))
         else:
             output.append(await create_new_event(event, google_id))
+    return output
 
 async def update_event_if_needed(discord_event, event):
     parsed_event = parse_event(event)
