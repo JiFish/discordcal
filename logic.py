@@ -11,6 +11,7 @@ import json
 SERVER_TZ = pytz_timezone(SERVER_TZ)
 EVENT_GRACE_TIME = timedelta(minutes=EVENT_GRACE_TIME)
 DAYS_AHEAD = timedelta(days=DAYS_AHEAD)
+EVENT_SHORT_TITLES = {k.lower(): v for k, v in EVENT_SHORT_TITLES.items()} # Make find strings lowercase
 
 # Google Calendar API Initialization
 credentials = service_account.Credentials.from_service_account_file(
@@ -190,15 +191,24 @@ async def create_new_event(event, google_id):
     event_mappings[google_id] = new_event.id
     return f"Created Discord event: {name}"
 
-async def update_bot_status(events, bot):
+async def update_bot_status(events, bot):#EVENT_SHORT_TITLES
     if events:
         next_event_time = datetime.fromisoformat(events[0]['start']['dateTime']).astimezone(SERVER_TZ)
-        status_message = events[0]['summary'].replace("%", "%%") 
-        status_message = STATUS_MESSAGE_FORMAT.replace("%event", status_message)
+        event_name = events[0]['summary']
+        event_name = EVENT_SHORT_TITLES.get(event_name.lower(), event_name)
+        status_message = STATUS_MESSAGE_FORMAT.replace("%event", event_name.replace("%", "%%"))
         if "%next" in status_message:
             today = datetime.now(SERVER_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
             days_away = (next_event_time - today).days
-            status_message = status_message.replace("%next", "Today" if days_away == 0 else "%a" if days_away <= 7 else "%b %d")
+            if days_away == 0:
+                day_happening = "Today"
+            elif days_away == 1:
+                day_happening = "Tomorrow"
+            elif days_away <= 7:
+                day_happening = "%a"
+            else:
+                day_happening = "%b %d"
+            status_message = status_message.replace("%next", day_happening)
         status_message = next_event_time.strftime(status_message)
     else:
         status_message = "No upcoming events"

@@ -23,6 +23,11 @@ SERVER_TZ = 'GMT'               # Your server's timezone as a string, used for t
 # %next: Day name if the event is less than 7 days away, otherwise the month name and day
 # You can use any placeholders from strftime: https://strftime.org/
 STATUS_MESSAGE_FORMAT = "Next: %event - %next %H:%M (GMT)"
+# Short event titles - Sometimes a long event title won't fit in the status message.
+# You can use this setting to subsitute event titles in bot status.
+EVENT_SHORT_TITLES = {
+    'Some really really long event title - case insenstive!': 'Short event title'
+}
 
 # Directory for event images
 IMAGE_DIRECTORY = 'images'
